@@ -3,6 +3,7 @@
 # system
 import os
 import sys
+import json
 from time import time
 
 # spark config and context
@@ -305,6 +306,10 @@ class MLPipelineTraining:
             if(int(line[4]) <= 0 and int(line[5]) <= 0):
                 continue
 
+            # we will also skip elements with no text
+            if(int(line[8]) <= 0):
+                continue
+
             # get the tag
             tag         = line[0]
             # get the features
@@ -370,16 +375,16 @@ class MLPipelineTraining:
         # select prediction columns
         selected = predictions.select('tag', 'tag_features', 'prediction', 'probability')
 
+        # notify prediction results
+        self.system('Prediction Results:')
+        self.system('Possible Title ({}), Non-Title ({}), Total Predicted ({})'
+            .format(
+                selected.filter(selected.prediction > 0).count(),
+                selected.filter(selected.prediction <= 0).count(),
+                selected.count()))
+
         # iterate on each row
         if 'showResults' in MLPipelineTraining.options:
-            # notify prediction results
-            self.system('Prediction Results ({}): ')
-            self.system('Possible Title ({}), Non-Title ({}), Total Predicted ({})'
-                .format(
-                    selected.filter(selected.prediction > 0).count(),
-                    selected.filter(selected.prediction <= 0).count(),
-                    selected.count()))
-
             # if no results
             if selected.filter(selected.prediction > 0).count() <= 0 :
                 self.warning("There are no predicted results ...")
@@ -388,9 +393,53 @@ class MLPipelineTraining:
 
             # show prediction dataframe
             selected.filter(selected.prediction > 0).show()
+
+            # show results text (debugging)
+            self.getResultText(selected.filter(selected.prediction > 0))
             
 
         return selected.collect()
+
+    '''
+    Get the text data of the results.
+
+    @param  : DataFrame
+    @return : MLPipelineTraining
+    '''
+    def getResultText(self, df):
+        # results path exists?
+        if not 'results' in MLPipelineTraining.options:
+            # warn about it
+            self.warning('Cannot output result text, --results=[path] option is not set.')
+
+            return
+
+        # notify open json results
+        self.success("Opening results file for data gathering ...")
+
+        # collect data frame data
+        df = df.collect();
+
+        # load up the json results
+        with open(MLPipelineTraining.options['results']) as json_file:
+            data = json.load(json_file)
+
+        self.success("Possible Title Text: ")
+
+        # iterate on the results file
+        for i in data:
+            # iterate on each predicted results
+            for k in df:
+                # get the tag
+                tag      = k.tag
+                # get tag features
+                features = k.tag_features.split(' ')
+
+                # compare features
+                if (i['tag'] == tag 
+                and float(i['offset_x']) == float(features[1])
+                and float(i['offset_y']) == float(features[2])):
+                    self.warning('Title: ' + i['text'])
 
     '''
     Success notification
