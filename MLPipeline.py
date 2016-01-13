@@ -420,10 +420,19 @@ class MLPipelineTraining:
         # collect data frame data
         df = df.collect();
 
-        # load up the json results
-        with open(MLPipelineTraining.options['results']) as json_file:
-            data = json.load(json_file)
+        # try to open results file
+        try:
+            # load up the json results
+            with open(MLPipelineTraining.options['results']) as json_file:
+                data = json.load(json_file)
+        except:
+            # notify error
+            self.fail("Unable to open results file \'{}\'.".format(MLPipelineTraining.options['results']))
 
+            # exit
+            sys.exit(1)
+
+        # notify possible text
         self.success("Possible Title Text: ")
 
         # iterate on the results file
